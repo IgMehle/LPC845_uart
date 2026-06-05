@@ -22,27 +22,26 @@
 /* TODO: insert other definitions and declarations here. */
 #define UART0_TX_PIN	25
 #define UART0_RX_PIN	24
-#define UART1_TX_PIN	7
-#define UART1_RX_PIN	12
+//#define UART1_TX_PIN	7
+//#define UART1_RX_PIN	12
 
 #define BUFFER_SIZE		64
 #define RING_BF_MASK	(BUFFER_SIZE - 1)
 
 typedef struct {
-	uint8_t bf[BUFFER_SIZE];
+	char bf[BUFFER_SIZE];
 	uint8_t head;
 	uint8_t tail;
-	uint8_t count;
+	//uint8_t count;
 } ring_buffer_t;
 
 void uart0_init(void);
-void uart1_init(void);
-void uart0_write(uint8_t *bf);
-void buffer_push(ring_buffer_t *rb, uint8_t byte);
+void uart0_write(char *bf);
+void buffer_push(volatile ring_buffer_t *rb, char c);
+char buffer_pop(volatile ring_buffer_t *rb);
 
-volatile uint8_t rx_buffer[BUFFER_SIZE];
-volatile uint8_t rx_index = 0;
-volatile uint8_t rx_echo[2] = {0, 0};
+volatile ring_buffer_t rx_buffer;
+char rx_echo[2] = {0, 0};
 volatile uint8_t flag_new_line = 0;
 
 /*
@@ -60,12 +59,11 @@ int main(void) {
 	USART_EnableInterrupts(USART0, kUSART_RxReadyInterruptEnable);
 	NVIC_EnableIRQ(USART0_IRQn);
 
-	uint8_t *ptr, i = 0;
-	uint8_t bf[BUFFER_SIZE];
-	uint8_t resp[BUFFER_SIZE];
+	char bf[BUFFER_SIZE];
+	char resp[BUFFER_SIZE];
 
 	while (1) {
-		if (*rx_echo) {
+		if (rx_echo[0] != 0) {
 			uart0_write(rx_echo);
 			rx_echo[0] = 0;
 		}
@@ -73,14 +71,23 @@ int main(void) {
 		if (flag_new_line) {
 			// Limpio flag
 			flag_new_line = 0;
+
 			// Copio rx_buffer a buffer local
-			USART_DisableInterrupts(USART0, kUSART_RxReadyInterruptEnable);
-			memcpy(bf, (const uint8_t*)rx_buffer, rx_index + 1);
-			memset((uint8_t*)rx_buffer, 0, rx_index + 1);
-			rx_index = 0;
-			USART_EnableInterrupts(USART0, kUSART_RxReadyInterruptEnable);
+			uint8_t i = 0;
+			// lectura inicial
+			char c = buffer_pop(&rx_buffer);
+			while (c) {
+				// copio caracter
+				bf[i] = c;
+				i++;
+				// vuelvo a leer
+				c = buffer_pop(&rx_buffer);
+			}
+			// aseguro terminacion de string
+			bf[i] = 0;
+
 			// Comparo
-			if (strncmp(bf, "ping", 4) == 0) {
+			if (strcmp(bf, "ping") == 0) {
 				strcpy(resp, "PONG\n");
 			}
 			else strcpy(resp, "NACK\n");
@@ -103,16 +110,19 @@ void USART0_IRQHandler(void) {
 			USART_ClearStatusFlags(USART0, err); // W1C vía SDK
 			(void)USART_ReadByte(USART0);        // descartar byte corrupto
 		}
-		else if (rx_index < BUFFER_SIZE - 1) {
+		else {
 			// Leo byte recibido
 			uint8_t c = USART_ReadByte(USART0);
-			rx_buffer[rx_index] = c;
-			rx_index++;
-			// aseguro terminacion de string
-			rx_buffer[rx_index] = 0;
-			// Si llego el caracter de nueva linea levanto el flag
+			// Si llego el caracter de nueva linea
 			if (c == '\n') {
+				// termino el string
+				buffer_push(&rx_buffer, '\0');
+				// levanto flag de nueva linea
 				flag_new_line = 1;
+			}
+			// Si no, copio a buffer - descarto '\r'
+			else if (c != '\r') {
+				buffer_push(&rx_buffer, c);
 			}
 			rx_echo[0] = c;
 		}
@@ -142,31 +152,45 @@ void uart0_init(void)
 	USART_Init(USART0, &uart_config, CLOCK_GetFreq(kCLOCK_MainClk));
 }
 
-void uart0_write(uint8_t *ptr)
+void uart0_write(char *ptr)
 {
 	while (*ptr != 0) {
-		// Espera TXRDY y escribe
+		// Espera TXRDY y escribe - sin gap entre bytes
 		while (!(USART_GetStatusFlags(USART0) & kUSART_TxReady));
 		USART_WriteByte(USART0, *ptr);
 		// Muevo puntero
 		ptr++;
-		// Para esperar que el frame entero salió por el pin (TXIDLE):
-		while (!(USART_GetStatusFlags(USART0) & kUSART_TxIdleFlag));
 	}
+	// TXIDLE una sola vez al final: garantiza que el último byte
+	// salió completo antes de que la función retorne
+	while (!(USART_GetStatusFlags(USART0) & kUSART_TxIdleFlag));
 }
 
-void buffer_push(ring_buffer_t *rb, uint8_t byte)
+void buffer_push(volatile ring_buffer_t *rb, char c)
 {
 	// calculo la posicion del nuevo head
 	uint8_t next_head = (rb->head + 1) & RING_BF_MASK;
+	// uint8_t next_head = (rb->head + 1) % BUFFER_SIZE;
 	// si next apunta a tail, el buffer esta lleno
 	if (next_head == rb->tail) {
 		// overflow
 		return;
 	}
-	// copio byte
-	rb->bf[rb->head] = byte;
+	// copio caracter
+	rb->bf[rb->head] = c;
 	// actualizo head
 	rb->head = next_head;
 	return;
+}
+char buffer_pop(volatile ring_buffer_t *rb)
+{
+	// si la queue esta vacia retorno caracter nulo
+	if (rb->tail == rb->head) return '\0';
+	// leo caracter
+	char c = rb->bf[rb->tail];
+	// calculo nueva posicion de tail
+	rb->tail = (rb->tail + 1) & RING_BF_MASK;
+	//rb->tail = (rb->tail + 1) % BUFFER_SIZE;
+	// retorno caracter leido
+	return c;
 }
