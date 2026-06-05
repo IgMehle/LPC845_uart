@@ -1,0 +1,30 @@
+# Builds
+Debug/
+Release/
+*/Debug/
+*/Release/
+
+# Output binaries / maps
+*.o
+*.obj
+*.d
+*.a
+*.elf
+*.axf
+*.out
+*.hex
+*.bin
+*.map
+*.lst
+*.srec
+
+# Eclipse/MCUXpresso user/workspace noise
+.metadata/
+*.launch
+*.log
+.settings/*.prefs.bak
+.settings/language.settings.xml
+
+# OS noise
+.DS_Store
+Thumbs.db
