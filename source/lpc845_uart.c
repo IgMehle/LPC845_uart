@@ -60,7 +60,10 @@ int main(void) {
 	NVIC_EnableIRQ(USART0_IRQn);
 
 	char bf[BUFFER_SIZE];
-	char resp[BUFFER_SIZE];
+	//char resp[BUFFER_SIZE];
+	char prompt[] = ">> ";
+
+	uart0_write(prompt);
 
 	while (1) {
 		if (rx_echo[0] != 0) {
@@ -84,15 +87,17 @@ int main(void) {
 				c = buffer_pop(&rx_buffer);
 			}
 			// aseguro terminacion de string
-			bf[i] = 0;
+			bf[i] = '\0';
 
-			// Comparo
-			if (strcmp(bf, "ping") == 0) {
-				strcpy(resp, "PONG\n");
+			if (bf[0] != '\0') {
+				// Comparo y escribo en uart
+				if (strcmp(bf, "ping") == 0) {
+					uart0_write("< PONG\n");
+				}
+				else uart0_write("< NACK\n");
 			}
-			else strcpy(resp, "NACK\n");
-			// escribo en uart
-			uart0_write(resp);
+			// escribo prompt
+			uart0_write(prompt);
 		}
 	}
     return 0;
