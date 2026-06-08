@@ -41,7 +41,7 @@ void buffer_push(volatile ring_buffer_t *rb, char c);
 char buffer_pop(volatile ring_buffer_t *rb);
 
 volatile ring_buffer_t rx_buffer;
-char rx_echo[2] = {0, 0};
+char rx_echo[4] = {0, 0, 0, 0};
 volatile uint8_t flag_new_line = 0;
 
 /*
@@ -105,6 +105,7 @@ int main(void) {
 
 void USART0_IRQHandler(void) {
 	uint32_t flags = USART_GetStatusFlags(USART0);
+	static uint8_t last_was_cr = 0;
 
 	if (flags & kUSART_RxReady) {
 		// Revisar errores ANTES de leer el dato
@@ -118,18 +119,42 @@ void USART0_IRQHandler(void) {
 		else {
 			// Leo byte recibido
 			uint8_t c = USART_ReadByte(USART0);
-			// Si llego el caracter de nueva linea
-			if (c == '\n') {
+
+			// Si llego caracter CR
+			if (c == '\r') {
+				last_was_cr = 1;
 				// termino el string
 				buffer_push(&rx_buffer, '\0');
 				// levanto flag de nueva linea
 				flag_new_line = 1;
+				rx_echo[0] = '\r';
+				rx_echo[1] = '\n';
+				rx_echo[2] = '\0';
+
 			}
-			// Si no, copio a buffer - descarto '\r'
-			else if (c != '\r') {
+			// Si llego caracter LF
+			else if (c == '\n') {
+				// Si previamente llego un CR, es un CRLF
+				// Ignoro el LF
+				if (last_was_cr) last_was_cr = 0;
+				else {
+					// Es un LF solo
+					buffer_push(&rx_buffer, '\0');
+					// levanto flag de nueva linea
+					flag_new_line = 1;
+					rx_echo[0] = '\r';
+					rx_echo[1] = '\n';
+					rx_echo[2] = '\0';
+				}
+			}
+			else {
+				last_was_cr = 0;
 				buffer_push(&rx_buffer, c);
+				// escribo echo de caracter
+				rx_echo[0] = c;
+
 			}
-			rx_echo[0] = c;
+
 		}
 	}
 	SDK_ISR_EXIT_BARRIER;
