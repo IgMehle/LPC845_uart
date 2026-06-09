@@ -39,6 +39,10 @@ void uart0_init(void);
 void uart0_write(char *bf);
 void buffer_push(volatile ring_buffer_t *rb, char c);
 char buffer_pop(volatile ring_buffer_t *rb);
+// Teraterm manda 0x08 (ASCII BS).
+// Algunos terminales mandan 0x7F (DEL).
+// Conviene manejar los dos:
+uint8_t buffer_unpush(volatile ring_buffer_t *rb);
 
 volatile ring_buffer_t rx_buffer;
 volatile char rx_echo[4] = {0, 0, 0, 0};
@@ -141,6 +145,21 @@ void USART0_IRQHandler(void) {
 					flag_new_line = 1;
 				}
 			}
+			// Si llego backspace
+			else if (c == '\b' || c == 0x7F) {
+				if (buffer_unpush(&rx_buffer)) {
+					// habia algo: mandar secuencia de borrado
+					rx_echo[0] = '\b';
+					rx_echo[1] = ' ';
+					rx_echo[2] = '\b';
+					rx_echo[3] = '\0';
+				}
+				else {
+					// buffer vacio: no echo
+					rx_echo[0] = '\0';
+				}
+				last_was_cr = 0;
+			}
 			else {
 				last_was_cr = 0;
 				buffer_push(&rx_buffer, c);
@@ -206,6 +225,7 @@ void buffer_push(volatile ring_buffer_t *rb, char c)
 	rb->head = next_head;
 	return;
 }
+
 char buffer_pop(volatile ring_buffer_t *rb)
 {
 	// si la queue esta vacia retorno caracter nulo
@@ -217,4 +237,13 @@ char buffer_pop(volatile ring_buffer_t *rb)
 	//rb->tail = (rb->tail + 1) % BUFFER_SIZE;
 	// retorno caracter leido
 	return c;
+}
+
+// Retorna 1 si había algo para borrar, 0 si el buffer estaba vacío
+uint8_t buffer_unpush(volatile ring_buffer_t *rb)
+{
+    if (rb->head == rb->tail) return 0;  // nada que borrar
+    rb->head = (rb->head - 1) & RING_BF_MASK;
+    // rb->head = (rb->head - 1) % BUFFER_SIZE;
+    return 1;
 }
