@@ -41,7 +41,7 @@ void buffer_push(volatile ring_buffer_t *rb, char c);
 char buffer_pop(volatile ring_buffer_t *rb);
 
 volatile ring_buffer_t rx_buffer;
-char rx_echo[4] = {0, 0, 0, 0};
+volatile char rx_echo[4] = {0, 0, 0, 0};
 volatile uint8_t flag_new_line = 0;
 
 /*
@@ -55,25 +55,25 @@ int main(void) {
 	// UART0 INIT
 	uart0_init();
 
+	char bf[BUFFER_SIZE];
+	char prompt[] = ">> ";
+	uart0_write(prompt);
+
 	// Habilito IRQ de RX
 	USART_EnableInterrupts(USART0, kUSART_RxReadyInterruptEnable);
 	NVIC_EnableIRQ(USART0_IRQn);
 
-	char bf[BUFFER_SIZE];
-	//char resp[BUFFER_SIZE];
-	char prompt[] = ">> ";
-
-	uart0_write(prompt);
-
 	while (1) {
-		if (rx_echo[0] != 0) {
+		if (rx_echo[0] != '\0') {
 			uart0_write(rx_echo);
-			rx_echo[0] = 0;
+			rx_echo[0] = '\0';
 		}
 		// Chequeo si termine de recibir una linea
 		if (flag_new_line) {
 			// Limpio flag
 			flag_new_line = 0;
+			// terminacion de linea CRLF
+			uart0_write("\r\n");
 
 			// Copio rx_buffer a buffer local
 			uint8_t i = 0;
@@ -92,9 +92,9 @@ int main(void) {
 			if (bf[0] != '\0') {
 				// Comparo y escribo en uart
 				if (strcmp(bf, "ping") == 0) {
-					uart0_write("< PONG\n");
+					uart0_write("< PONG\r\n");
 				}
-				else uart0_write("< NACK\n");
+				else uart0_write("< NACK\r\n");
 			}
 			// escribo prompt
 			uart0_write(prompt);
@@ -127,9 +127,6 @@ void USART0_IRQHandler(void) {
 				buffer_push(&rx_buffer, '\0');
 				// levanto flag de nueva linea
 				flag_new_line = 1;
-				rx_echo[0] = '\r';
-				rx_echo[1] = '\n';
-				rx_echo[2] = '\0';
 
 			}
 			// Si llego caracter LF
@@ -142,9 +139,6 @@ void USART0_IRQHandler(void) {
 					buffer_push(&rx_buffer, '\0');
 					// levanto flag de nueva linea
 					flag_new_line = 1;
-					rx_echo[0] = '\r';
-					rx_echo[1] = '\n';
-					rx_echo[2] = '\0';
 				}
 			}
 			else {
@@ -152,7 +146,7 @@ void USART0_IRQHandler(void) {
 				buffer_push(&rx_buffer, c);
 				// escribo echo de caracter
 				rx_echo[0] = c;
-
+				rx_echo[1] = '\0';
 			}
 
 		}
