@@ -12,8 +12,8 @@
 #include "fsl_usart.h"
 
 // BUFFER SIZE
-#define UART_BUFFER_SIZE		64
-#define RING_BF_MASK			(UART_BUFFER_SIZE - 1)
+#define UART_BUFFER_SIZE	64
+#define RING_BF_MASK		(UART_BUFFER_SIZE - 1)
 
 // UART HANDLE
 typedef USART_Type*		uart_handle_t;
@@ -39,7 +39,7 @@ void uart_enable_irq(uart_handle_t uart, n_uart_t n);
 
 // READ
 uint8_t uart_new_line(void);
-uint8_t uart_getc();
+uint8_t uart_getc(void);
 
 // WRITE
 void uart_write_blocking(uart_handle_t uart, char *bf);
