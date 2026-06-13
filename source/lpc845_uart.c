@@ -36,7 +36,9 @@ typedef struct {
 } ring_buffer_t;
 
 void uart0_init(void);
+void uart0_write_blocking(char *bf);
 void uart0_write(char *bf);
+
 void buffer_push(volatile ring_buffer_t *rb, char c);
 char buffer_pop(volatile ring_buffer_t *rb);
 // Teraterm manda 0x08 (ASCII BS).
@@ -45,6 +47,7 @@ char buffer_pop(volatile ring_buffer_t *rb);
 uint8_t buffer_unpush(volatile ring_buffer_t *rb);
 
 volatile ring_buffer_t rx_buffer;
+volatile ring_buffer_t tx_buffer;
 volatile char rx_echo[4] = {0, 0, 0, 0};
 volatile uint8_t flag_new_line = 0;
 
@@ -59,6 +62,8 @@ int main(void) {
 	// UART0 INIT
 	uart0_init();
 
+	char c = 0;
+	uint8_t i = 0;
 	char bf[BUFFER_SIZE];
 	char prompt[] = ">> ";
 	uart0_write(prompt);
@@ -68,10 +73,10 @@ int main(void) {
 	NVIC_EnableIRQ(USART0_IRQn);
 
 	while (1) {
-		if (rx_echo[0] != '\0') {
-			uart0_write(rx_echo);
-			rx_echo[0] = '\0';
-		}
+//		if (rx_echo[0] != '\0') {
+//			uart0_write(rx_echo);
+//			rx_echo[0] = '\0';
+//		}
 		// Chequeo si termine de recibir una linea
 		if (flag_new_line) {
 			// Limpio flag
@@ -80,9 +85,9 @@ int main(void) {
 			uart0_write("\r\n");
 
 			// Copio rx_buffer a buffer local
-			uint8_t i = 0;
+			i = 0;
 			// lectura inicial
-			char c = buffer_pop(&rx_buffer);
+			c = buffer_pop(&rx_buffer);
 			while (c) {
 				// copio caracter
 				bf[i] = c;
@@ -110,7 +115,10 @@ int main(void) {
 void USART0_IRQHandler(void) {
 	uint32_t flags = USART_GetStatusFlags(USART0);
 	static uint8_t last_was_cr = 0;
+	static char rx_echo[4] = {0};
+	static char c = 0;
 
+	// RX
 	if (flags & kUSART_RxReady) {
 		// Revisar errores ANTES de leer el dato
 		uint32_t err = flags & (kUSART_FramErrorFlag |
@@ -153,6 +161,7 @@ void USART0_IRQHandler(void) {
 					rx_echo[1] = ' ';
 					rx_echo[2] = '\b';
 					rx_echo[3] = '\0';
+					uart0_write(rx_echo);
 				}
 				else {
 					// buffer vacio: no echo
@@ -166,10 +175,22 @@ void USART0_IRQHandler(void) {
 				// escribo echo de caracter
 				rx_echo[0] = c;
 				rx_echo[1] = '\0';
+				uart0_write(rx_echo);
 			}
 
 		}
 	}
+
+	// TX
+	if (flags & kUSART_TxReady) {
+		// Hay caracter no nulo en el buffer?
+		c = buffer_pop(&tx_buffer);
+		// Si es valido lo envio
+		if (c) USART_WriteByte(USART0, c);
+		// Si no hay mas caracteres en el buffer apago la IRQ
+		else USART_DisableInterrupts(USART0, kUSART_TxReadyInterruptEnable);
+	}
+
 	SDK_ISR_EXIT_BARRIER;
 }
 
@@ -195,7 +216,7 @@ void uart0_init(void)
 	USART_Init(USART0, &uart_config, CLOCK_GetFreq(kCLOCK_MainClk));
 }
 
-void uart0_write(char *ptr)
+void uart0_write_blocking(char *ptr)
 {
 	while (*ptr != 0) {
 		// Espera TXRDY y escribe - sin gap entre bytes
@@ -207,6 +228,16 @@ void uart0_write(char *ptr)
 	// TXIDLE una sola vez al final: garantiza que el último byte
 	// salió completo antes de que la función retorne
 	while (!(USART_GetStatusFlags(USART0) & kUSART_TxIdleFlag));
+}
+
+void uart0_write(char *ptr)
+{
+	while (*ptr != 0) {
+		buffer_push(&tx_buffer, *ptr);
+		ptr++;
+	}
+	// habilito TX IRQ
+	USART_EnableInterrupts(USART0, kUSART_TxReadyInterruptEnable);
 }
 
 void buffer_push(volatile ring_buffer_t *rb, char c)
