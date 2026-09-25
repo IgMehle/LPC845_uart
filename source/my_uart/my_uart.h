@@ -16,14 +16,7 @@
 #define RING_BF_MASK		(UART_BUFFER_SIZE - 1)
 
 // UART HANDLE
-typedef USART_Type*		uart_handle_t;
-
-// N UARTS
-typedef enum uarts {
-	UART0,
-	UART1,
-	UART2
-} n_uart_t;
+typedef uint8_t	uart_handle_t;
 
 // RING BUFFER
 typedef struct {
@@ -34,16 +27,16 @@ typedef struct {
 } ring_buffer_t;
 
 // INIT
-void uart_init(uart_handle_t uart, uint32_t baudrate);
-void uart_enable_irq(uart_handle_t uart, n_uart_t n);
+void uart_init(uart_handle_t n, uint32_t baudrate);
+void uart_enable_irq(uart_handle_t n);
 
 // READ
 uint8_t uart_new_line(void);
 uint8_t uart_getc(void);
 
 // WRITE
-void uart_write_blocking(uart_handle_t uart, char *bf);
-void uart_write(uart_handle_t uart, char *bf);
+void uart_write_blocking(uart_handle_t n, char *ptr);
+void uart_write(uart_handle_t n, char *ptr);
 
 // RING BUFFERS
 void buffer_push(volatile ring_buffer_t *rb, char c);

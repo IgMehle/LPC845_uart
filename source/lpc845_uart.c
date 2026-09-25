@@ -42,17 +42,16 @@ int main(void) {
 	CLOCK_Select(kUART0_Clk_From_MainClk);
 
 	// UART0 INIT
-	uart_init(USART0, 9600U);
+	uart_init(0, 9600U);
 
 	char c = 0;
 	uint8_t i = 0;
 	char bf[UART_BUFFER_SIZE];
 	char prompt[] = ">> ";
-	uart_write(USART0, prompt);
+	uart_write(0, prompt);
 
 	// Habilito IRQ de RX
-	USART_EnableInterrupts(USART0, kUSART_RxReadyInterruptEnable);
-	NVIC_EnableIRQ(USART0_IRQn);
+	uart_enable_irq(0);
 
 	while (1) {
 //		if (rx_echo[0] != '\0') {
@@ -62,7 +61,7 @@ int main(void) {
 		// Chequeo si termine de recibir una linea
 		if (uart_new_line()) {
 			// terminacion de linea CRLF
-			uart_write(USART0, "\r\n");
+			uart_write(0, "\r\n");
 
 			// Copio rx_buffer a buffer local
 			i = 0;
@@ -81,12 +80,12 @@ int main(void) {
 			if (bf[0] != '\0') {
 				// Comparo y escribo en uart
 				if (strcmp(bf, "ping") == 0) {
-					uart_write(USART0, "< PONG\r\n");
+					uart_write(0, "< PONG\r\n");
 				}
-				else uart_write(USART0, "< NACK\r\n");
+				else uart_write(0, "< NACK\r\n");
 			}
 			// escribo prompt
-			uart_write(USART0, prompt);
+			uart_write(0, prompt);
 		}
 	}
     return 0;
