@@ -30,16 +30,23 @@
  * @brief   Application entry point.
  */
 int main(void) {
-	// FRO init
-	BOARD_BootClockFRO24M();
-	// NO INICIALIZO DEBUG CONSOLE SI USO UART EN PINES 24 Y 25
 
-	// Mapeo pines TX y RX de UART0
-	CLOCK_EnableClock(kCLOCK_Swm);
-	SWM_SetMovablePinSelect(SWM0, kSWM_USART0_TXD, UART0_TX_PIN);
-	SWM_SetMovablePinSelect(SWM0, kSWM_USART0_RXD, UART0_RX_PIN);
-	CLOCK_DisableClock(kCLOCK_Swm);
-	CLOCK_Select(kUART0_Clk_From_MainClk);
+	BOARD_InitBootPins();
+	BOARD_InitBootClocks();
+	BOARD_InitBootPeripherals();
+	// NO INICIALIZO DEBUG CONSOLE SI USO UART EN PINES 24 Y 25
+	// BOARD_InitDebugConsole();
+
+	// Mapeo pines TX y RX de UART
+	// NOTA: Si voy a usar la UART0 en P0.24 Y P0.25,
+	// y en InitBootPins tengo BOARD_InitDEBUG_UARTPins(),
+	// no hace falta activar la UART0 de nuevo
+
+	//CLOCK_EnableClock(kCLOCK_Swm);
+	//SWM_SetMovablePinSelect(SWM0, kSWM_USART0_TXD, UART0_TX_PIN);
+	//SWM_SetMovablePinSelect(SWM0, kSWM_USART0_RXD, UART0_RX_PIN);
+	//CLOCK_DisableClock(kCLOCK_Swm);
+	//CLOCK_Select(kUART0_Clk_From_MainClk);
 
 	// UART0 INIT
 	uart_init(0, 9600U);
@@ -49,9 +56,6 @@ int main(void) {
 	char bf[UART_BUFFER_SIZE];
 	char prompt[] = ">> ";
 	uart_write(0, prompt);
-
-	// Habilito IRQ de RX
-	uart_enable_irq(0);
 
 	while (1) {
 //		if (rx_echo[0] != '\0') {

@@ -9,8 +9,8 @@
 
 // USART INSTANCES
 static const USART_Type* usart[] = {
-	USART0, 
-	USART1, 
+	USART0,
+	USART1,
 	USART2};
 static const IRQn_Type usart_irqn[]  = {
 	USART0_IRQn, 
@@ -22,29 +22,7 @@ volatile ring_buffer_t rx_buffer;
 volatile ring_buffer_t tx_buffer;
 volatile uint8_t flag_new_line = 0;
 
-void uart_init(uart_handle_t n, uint32_t baudrate)
-{
-	usart_config_t config;
-	USART_GetDefaultConfig(&config);
-
-	// Parametros de la UART0
-	config.baudRate_Bps  = baudrate;
-	config.parityMode    = kUSART_ParityDisabled;   // o kUSART_ParityEven/Odd
-	config.stopBitCount  = kUSART_OneStopBit;        // o kUSART_TwoStopBit
-	config.bitCountPerChar = kUSART_8BitsPerChar;
-	config.enableTx      = true;
-	config.enableRx      = true;
-	// Init uart
-	USART_Init(usart[n], &config, CLOCK_GetFreq(kCLOCK_MainClk));
-}
-
-void uart_enable_irq(uart_handle_t n)
-{
-	// Habilito IRQ de RX
-	USART_EnableInterrupts(usart[n], kUSART_RxReadyInterruptEnable);
-    NVIC_EnableIRQ(usart_irqn[n]);
-}
-
+// ISR UART0
 void USART0_IRQHandler(void) {
 	uint32_t flags = USART_GetStatusFlags(USART0);
 	static uint8_t last_was_cr = 0;
@@ -126,6 +104,32 @@ void USART0_IRQHandler(void) {
 	}
 
 	SDK_ISR_EXIT_BARRIER;
+}
+
+void uart_init(uart_handle_t n, uint32_t baudrate)
+{
+	usart_config_t config;
+	USART_GetDefaultConfig(&config);
+
+	// Parametros de la UART0
+	config.baudRate_Bps  = baudrate;
+	config.parityMode    = kUSART_ParityDisabled;   // o kUSART_ParityEven/Odd
+	config.stopBitCount  = kUSART_OneStopBit;        // o kUSART_TwoStopBit
+	config.bitCountPerChar = kUSART_8BitsPerChar;
+	config.enableTx      = true;
+	config.enableRx      = true;
+	// Init uart
+	USART_Init(usart[n], &config, CLOCK_GetFreq(kCLOCK_MainClk));
+
+	// Habilito IRQ de RX
+	uart_enable_irq(0);
+}
+
+void uart_enable_irq(uart_handle_t n)
+{
+	// Habilito IRQ de RX
+	USART_EnableInterrupts(usart[n], kUSART_RxReadyInterruptEnable);
+    NVIC_EnableIRQ(usart_irqn[n]);
 }
 
 uint8_t inline uart_new_line(void)

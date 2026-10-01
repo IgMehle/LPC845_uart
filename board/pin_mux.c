@@ -43,7 +43,7 @@ void BOARD_InitBootPins(void)
     BOARD_InitDEBUG_UARTPins();
     BOARD_InitSWD_DEBUGPins();
     BOARD_InitBUTTONsPins();
-    BOARD_InitCAPTPins();
+    //BOARD_InitCAPTPins();
 }
 
 /* clang-format off */
